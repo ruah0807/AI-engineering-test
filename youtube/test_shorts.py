@@ -48,7 +48,7 @@ from pinecone import Pinecone, ServerlessSpec
 from sentence_transformers import SentenceTransformer
 
 #Pinecone 초기화
-pc = Pinecone(api_key='db31f186-85fc-4d80-a8f7-45b3c4488b1b')
+pc = Pinecone(api_key='api-key-넣어야함')
 
 index_name = 'youtube-subtitles'
 

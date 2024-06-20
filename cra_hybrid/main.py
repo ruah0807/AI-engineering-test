@@ -9,27 +9,57 @@ from recipies import RecipeCrawler
 from dotenv import load_dotenv
 import os
 
+# db예제
+from pymongo.errors import BulkWriteError
+from pymongo.mongo_client import MongoClient
+from pymongo import UpdateOne
+
+from pinecone import Pinecone, ServerlessSpec
+from food2vec import Estimator
+
+
+
 # .env 파일의 변수를 프로그램 환경변수에 추가
 load_dotenv()
 
 DB_ID = os.getenv('DB_ID')
 DB_PW = os.getenv('DB_PW')
 DB_URL = os.getenv('DB_URL')
+PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 
 app = FastAPI()
 
-# db예제
-from pymongo.errors import BulkWriteError
-from pymongo.mongo_client import MongoClient
-from pymongo import UpdateOne
-
+# MongoDB client 생성
 uri = f'mongodb+srv://{DB_ID}:{DB_PW}{DB_URL}'
-
-# ## 1. db client 생성
 client = MongoClient(uri)
-
-## 2. 사용하려는 database 특정
 db = client.crawling_test
+
+# Pinecone 초기화
+pc = Pinecone(api_key=PINECONE_API_KEY)
+index_name = 'recipes'
+if index_name not in pc.list_indexes().names():
+    pc.create_index(
+        name=index_name, 
+        dimension=300,  #300 차원 백터 사용
+        metric='cosine',
+        spec=ServerlessSpec(
+            cloud='aws',
+            region='us-east-1'
+        )
+    )
+index = pc.Index(index_name)
+
+
+# Food2Vec 모델 로드
+food2vec = Estimator()
+
+
+
+# 텍스트 임배딩 생성 함수
+def embed_text(text: str) -> list:
+    return food2vec.get_
+
+
 
 def recipes_serializer(recipe) -> dict:
     return {
@@ -115,3 +145,8 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
     saved_recipes =  db.recipes.find({'recipe_id' : {'$in': saved_recipes_ids}})
         
     return [recipes_serializer(recipe) for recipe in saved_recipes]
+
+
+
+
+

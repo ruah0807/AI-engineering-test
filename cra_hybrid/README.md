@@ -1,3 +1,5 @@
+MongoDB 초기 웹사이트 설정할 때 'Driver' connect.
+
 conda create -n ace_final_test python=3.12
 conda activate ace_final_test
 pip install fastapi uvicorn beautifulsoup4 requests lxml fake_useragent python-dotenv "pymongo[srv]"

@@ -83,8 +83,8 @@ class RecipeCrawler :
 
 
 
-    ### 크롤링하기 ###
-    def crawling(self, page_num: int)-> List[Dict]:
+    ### 페이지별 크롤링하기 ###
+    def page_crawling(self, page_num: int)-> List[Dict]:
         url = self.get_page_url(page_num)
         
         page_recipes = self.crawl_page(url)
@@ -98,5 +98,28 @@ class RecipeCrawler :
         
         print(f"수집된 레시피 데이터 개수: {len(recipe_details)}")
         return list(recipe_details)
+            
+            
+    ### 전체 크롤링 ###
+    def all_crawling(self) -> List[Dict]:
+        page_num = 1
+        all_recipes_data = []
+        
+        while True:
+            url = self.get_page_url(page_num)
+            page_recipes = self.crawl_page(url)
+                        
+            if not page_recipes:
+                break
+            
+                # 크롤링 속도를 높이기 위한 함수
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                recipe_details = list(executor.map(self.get_recipe_detail, page_recipes))
+                
+                all_recipes_data.extend(recipe_details)
+                page_num += 1
+        
+        print(f"전체 수집된 레시피 데이터 개수: {len(all_recipes_data)}")
+        return all_recipes_data
             
 

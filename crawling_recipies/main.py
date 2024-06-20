@@ -3,6 +3,8 @@ from typing import List, Dict
 from recipies import RecipeCrawler # crawling 모듈을 import
 
 
+
+
 app = FastAPI()
 
 

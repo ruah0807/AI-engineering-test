@@ -9,24 +9,28 @@ class RecipeScraper :
         
     ### 비정형화 문서 추출 : 재료, 레시피본문 ###
     def extract_ingreidents_and_instructions(self) ->  Dict[str, List[str]]:
-        
-        ingredients = {}
-        instructions = []
-
+      
         ingredients = self.extract_ingredients()
-        
-        
-        ### 조리 과정 추출 ###
-        instruction_tags = self.soup.find_all('p', {'data-ke-size': 'size16'})
-        instructions = [self.clean_instruction(tag.get_text(strip=True)) for tag in instruction_tags if tag.get_text(strip=True)]
-
+        instructions = self.extract_instructions()
+       
         return {'ingredients' : ingredients, 'instructions': instructions}
 
 
     
     ### 조리과정(레시피) 앞의 숫자, 점, 공백을 제거하는 정규 표현식 ###
-    def clean_instruction(self, text: str) -> str:
-        return re.sub(r'^\d+\.\s*','',text)
+    def extract_instructions(self) -> List[str]:
+        ### 조리 과정 추출 ###
+        instruction_tags = self.soup.find_all('p', {'data-ke-size': 'size16'})
+        instructions = []
+        for tag in instruction_tags:
+            text = tag.get_text(strip=True)
+            if text : 
+                # 숫자와 닫는 괄호를 하이픈으로 대체
+                text = re.sub(r'^\d+\.\s*', '', text)
+                text = re.sub(r'\d+\s*\)', '-', text)
+                instructions.append(text)
+        return instructions
+    
     
     
     ### 재료 예외처리 ###

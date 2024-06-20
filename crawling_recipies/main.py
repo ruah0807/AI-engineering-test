@@ -67,7 +67,7 @@ def get_detail_by_recipe_id(recipe_id:str):
 def save_recipes():
     base_url = 'https://chef-choice.tistory.com'
     crawler = RecipeCrawler(base_url)
-    all_recipes_data = crawler.crawling()
+    all_recipes_data = crawler.all_crawling()
     
     operations = [ 
                   UpdateOne({'recipe_id':recipe['recipe_id']}, {'$set': recipe}, upsert=True)
@@ -96,7 +96,7 @@ def save_recipes():
 def save_recipes(page_num : int = Query(1, description="Page number to crawl recipes from")):
     base_url = 'https://chef-choice.tistory.com'
     crawler = RecipeCrawler(base_url)
-    all_recipes_data = crawler.crawling(page_num)
+    all_recipes_data = crawler.page_crawling(page_num)
     
     operations = [ 
                   UpdateOne({'recipe_id':recipe['recipe_id']}, {'$set': recipe}, upsert=True)

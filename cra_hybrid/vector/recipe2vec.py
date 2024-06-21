@@ -1,15 +1,7 @@
 from sentence_transformers import SentenceTransformer
 from typing import List,Dict
 
-# # food2vec
-# from food2vec.semantic_nutrition import Estimator
-# import numpy as np
 
-# model = Estimator()
-
-# def some_embedding_function(text:str)->List[float]:
-#     vector = model.embed(text)
-#     return vector.tolist()
 
 
 # 모델 로드

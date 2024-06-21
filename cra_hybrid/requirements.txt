@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pymongo
+python-dotenv
+pinecone-client
+farm-haystack[elasticsearch]
+sentence-transformers

@@ -15,7 +15,7 @@ from pymongo.mongo_client import MongoClient
 from pymongo import UpdateOne
 
 from pinecone import Pinecone, ServerlessSpec
-from food2vec import Estimator
+from food2vec.semantic_nutrition import Estimator
 
 
 
@@ -51,13 +51,21 @@ index = pc.Index(index_name)
 
 
 # Food2Vec 모델 로드
-food2vec = Estimator()
-
+estimator = Estimator()
 
 
 # 텍스트 임배딩 생성 함수
 def embed_text(text: str) -> list:
-    return food2vec.get_
+    return estimator.embed(text).tolist()
+
+
+
+
+
+
+
+
+
 
 
 
@@ -150,3 +158,13 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
 
 
 
+# 하이브리드 검색 GET
+@app.get('/ddook_recipes/search', response_model=List[Dict])
+def search_recipes(query: str = Query(..., description='비슷한 레시피 검색')):
+    embedding = embed_text(query)
+    search_results = index.query(embedding, top_k=10, include_metadata=True)
+
+    recipe_ids = [result['id'] for result in search_results['matches']]
+    recipes = db.recipes.find({'recipe_id': {'$in':recipe_ids}})
+    
+    return [recipes_serializer(recipe) for recipe in recipes]

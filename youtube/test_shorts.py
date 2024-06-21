@@ -101,7 +101,7 @@ def find_similar_videos(query_text):
     return results['matches']
 
 # 예제 사용
-query_text = '양조 간장'
+query_text = '.'
 similar_videos = find_similar_videos(query_text)
 print(similar_videos)
 
@@ -115,5 +115,9 @@ print(similar_videos)
 # 주세요 냉동만두 일곱 개 넣고 숙주 한 줌 청양고추도 넣어 줄게요 무리 끓기 시작하고 2분 뒤쯤 대파 놓고 계란 하나 깨서 
 # 넣어 주세요 뚜껑 닫고 3분 정도 지나서 계란 익을 때까지만 끓여주면 완성이에요 마무리로 후추 툭툭쳐서 한 입 먹어 보면 
 # 칼칼하면서 만두의 육즙이 입에서 [음악] 폭발하네요 해장도 될 거 같은데
+
+### 검 색 ###
+#냉동 만두 열 개, 숙주 한 줌, 청양고추 두 개, 대파 1/4 쪽, 고춧가루 한 스푼, 물 600ml, 국간장 반 스푼, 
+# 멸치액젓 한 스푼, 코인 육수 두 알, 냉동만두 일곱 개, 계란 하나, 후추
 
 # [{'id': 'video1', 'score': 0.886606753, 'values': []}]

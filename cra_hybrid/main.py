@@ -3,7 +3,9 @@ from typing import List, Dict
 
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
+
 from recipies import RecipeCrawler
+from vector.recipe2vec import recipe_to_vector,some_embedding_function
 
 # env 관련
 from dotenv import load_dotenv
@@ -14,8 +16,8 @@ from pymongo.errors import BulkWriteError
 from pymongo.mongo_client import MongoClient
 from pymongo import UpdateOne
 
-from pinecone import Pinecone, ServerlessSpec
-from food2vec.semantic_nutrition import Estimator
+from pinecone import Pinecone
+import json
 
 
 
@@ -36,36 +38,19 @@ db = client.crawling_test
 
 # Pinecone 초기화
 pc = Pinecone(api_key=PINECONE_API_KEY)
+
 index_name = 'recipes'
-if index_name not in pc.list_indexes().names():
-    pc.create_index(
-        name=index_name, 
-        dimension=300,  #300 차원 백터 사용
-        metric='cosine',
-        spec=ServerlessSpec(
-            cloud='aws',
-            region='us-east-1'
-        )
-    )
+# if index_name not in pc.list_indexes().names():
+#     pc.create_index(
+#         name=index_name, 
+#         dimension=384,  #384 차원 백터 사용
+#         metric='cosine',
+#         spec=ServerlessSpec(
+#             cloud='aws',
+#             region='us-east-1'
+#         )
+    # )
 index = pc.Index(index_name)
-
-
-# Food2Vec 모델 로드
-estimator = Estimator()
-
-
-# 텍스트 임배딩 생성 함수
-def embed_text(text: str) -> list:
-    return estimator.embed(text).tolist()
-
-
-
-
-
-
-
-
-
 
 
 
@@ -156,15 +141,91 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
 
 
 
-
-
-# 하이브리드 검색 GET
-@app.get('/ddook_recipes/search', response_model=List[Dict])
-def search_recipes(query: str = Query(..., description='비슷한 레시피 검색')):
-    embedding = embed_text(query)
-    search_results = index.query(embedding, top_k=10, include_metadata=True)
-
-    recipe_ids = [result['id'] for result in search_results['matches']]
-    recipes = db.recipes.find({'recipe_id': {'$in':recipe_ids}})
+### 몽고DB에 저장된 데이터 파인콘에 백터화한 후 저장 ###
+@app.post('/ddook_recipes/index_to_pinecone', response_model=Dict)
+def index_to_pinecone():
     
-    return [recipes_serializer(recipe) for recipe in recipes]
+    recipes=db.recipes.find()
+    vectors =[]
+    
+    for recipe in recipes :
+        vector = {
+            'id': recipe['recipe_id'],
+            'values' : recipe_to_vector(recipe) ,
+            'metadata': {
+                'title':recipe['title'],
+                'author':recipe['author'],
+                # json 변환된 ingredients 필드
+                'ingredients' :json.dumps(recipe['ingredients'], ensure_ascii=False),
+                'instructions': recipe['instructions']
+            }
+        }
+        vectors.append(vector)
+        
+    index.upsert(vectors=vectors)
+    return {'status':'success', 'indexed': len(vectors)}
+
+    
+
+
+### 하이브리드 검색 : MongoDB + Pinecone 정확도와 유사도 검색 ###
+
+@app.get("/hybrid_search", response_model=List[Dict])
+def hybrid_search(query: str):
+    # Pinecone에서 검색
+    vector_query = some_embedding_function(query)
+    pinecone_results = index.query(vector=vector_query, top_k=10, include_values=False, include_metadata=True)
+
+    print(f"Pinecone Results: {pinecone_results}")
+
+
+    # Pinecone 검색 결과에서 레시피 ID 추출 및 유사도 점수 저장
+    pinecone_data = {result['id']: result['score'] for result in pinecone_results['matches']}
+    
+    # MongoDB에서 검색 (Pinecone 결과와 추가 메타데이터 검색)
+    mongo_query = {
+        "$or": [
+            {"recipe_id": {"$in": list(pinecone_data.keys())}}, 
+            {"title": {"$regex": query, "$options": "i"}},
+            {"ingredients": {"$regex": query, "$options": "i"}},
+            {"instructions": {"$regex": query, "$options": "i"}}
+        ]
+    }
+    mongo_results = db.recipes.find(mongo_query)
+    mongo_results = [recipes_serializer(recipe) for recipe in mongo_results]
+    
+    # print(f"MongoDB Results: {mongo_results}")
+    
+    # 정확도를 계산하여 MongoDB 결과에 추가
+    def calculate_accuracy_score(recipe, query):
+        score = 0
+        if query.lower() in recipe['title'].lower():
+            score += 1.0
+        if query.lower() in json.dumps(recipe['ingredients'], ensure_ascii=False).lower():
+            score += 0.5
+        if query.lower() in ' '.join(recipe['instructions']).lower():
+            score += 0.5
+        return score
+
+    for result in mongo_results:
+        result['accuracy_score'] = calculate_accuracy_score(result, query)
+        
+   # Pinecone 결과와 MongoDB 결과 결합 및 유사도 점수 추가
+    combined_results = []
+    for result in mongo_results:
+        recipe_id = result['recipe_id']
+        if recipe_id in pinecone_data:
+            result['similarity_score'] = pinecone_data[recipe_id]
+        else:
+            result['similarity_score'] = 0  # MongoDB 결과는 유사도 점수가 없음
+        combined_results.append(result)
+    
+    # 정확도 점수와 유사도 점수를 합산하여 정렬
+    combined_results.sort(key=lambda x: (x['accuracy_score'], x['similarity_score']), reverse=True)
+    
+    return combined_results
+
+    
+   
+    
+    

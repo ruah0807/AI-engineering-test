@@ -22,7 +22,6 @@ from pinecone import Pinecone
 import json
 
 
-
 # .env 파일의 변수를 프로그램 환경변수에 추가
 load_dotenv()
 
@@ -36,31 +35,15 @@ app = FastAPI()
 # MongoDB client 생성
 uri = f'mongodb+srv://{DB_ID}:{DB_PW}{DB_URL}'
 client = MongoClient(uri)
-db = client.crawling_test
+# db = client.crawling_test
+db = client.ace_final_test
 
-try:
-    # MongoDB 클라이언트 생성
-    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-    # 연결 테스트
-    client.server_info()
-    print("MongoDB 연결 성공")
-except ServerSelectionTimeoutError as err:
-    print(f"MongoDB 연결 실패: {err}")
     
 # Pinecone 초기화
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
 index_name = 'recipes'
-# if index_name not in pc.list_indexes().names():
-#     pc.create_index(
-#         name=index_name, 
-#         dimension=384,  #384 차원 백터 사용
-#         metric='cosine',
-#         spec=ServerlessSpec(
-#             cloud='aws',
-#             region='us-east-1'
-#         )
-    # )
+
 index = pc.Index(index_name)
 
 
@@ -161,7 +144,7 @@ def index_to_pinecone():
     
     for recipe in recipes :
         vector = {
-            'id': recipe['recipe_id'],
+            'id': str(recipe['_id']),
             'values' : recipe_to_vector(recipe) ,
             'metadata': {
                 'title':recipe['title'],
@@ -178,25 +161,25 @@ def index_to_pinecone():
 
 ### food2vec을 이용한 재료 저장 ###
 @app.post('/ddook_recipes/food2vec', response_model=Dict)
-def index_to_pinecone():
+def index_to_pinecone_food2vec():
+    recipes = db.recipes.find()
+    vectors = []
     
-    recipes=db.recipes.find()
-    vectors =[]
-    
-    for recipe in recipes :
+    for recipe in recipes:
         vector = {
-            'id': recipe['recipe_id'],
-            'values' : recipe_to_vector_food2vec(recipe) ,
+            'id': str(recipe['_id']),
+            'values': recipe_to_vector_food2vec(recipe),
             'metadata': {
-                'title':recipe['title'],
-                'author':recipe['author'],
-                'publishAt': recipe['publishAt']
+                'title': recipe['title'],
+                'author': recipe['author'],
+                'ingredients': json.dumps(recipe['ingredients'], ensure_ascii=False),
+                'instructions': recipe['instructions']
             }
         }
         vectors.append(vector)
         
     index.upsert(vectors=vectors)
-    return {'status':'success', 'indexed': len(vectors)}
+    return {'status': 'success', 'indexed': len(vectors)}
     
 
 

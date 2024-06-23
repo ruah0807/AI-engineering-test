@@ -21,29 +21,24 @@ from pymongo import UpdateOne
 from pinecone import Pinecone
 import json
 
+app = FastAPI()
 
 # .env 파일의 변수를 프로그램 환경변수에 추가
 load_dotenv()
 
-DB_ID = os.getenv('DB_ID')
-DB_PW = os.getenv('DB_PW')
-DB_URL = os.getenv('DB_URL')
+
+DB_URI= os.getenv('MONGODB_URI')
 PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 
-app = FastAPI()
 
 # MongoDB client 생성
-uri = f'mongodb+srv://{DB_ID}:{DB_PW}{DB_URL}'
-client = MongoClient(uri)
-# db = client.crawling_test
-db = client.ace_final_test
+client = MongoClient(DB_URI)
+db = client.crawling_test
 
     
 # Pinecone 초기화
 pc = Pinecone(api_key=PINECONE_API_KEY)
-
 index_name = 'recipes'
-
 index = pc.Index(index_name)
 
 

@@ -1,12 +1,10 @@
 from sentence_transformers import SentenceTransformer
 from typing import List,Dict
 from food2vec.semantic_nutrition import Estimator
-from googletrans import Translator
 import numpy as np
 
 model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 food2vec = Estimator()
-translator = Translator()
 
 def recipe_to_vector_food2vec(recipe: Dict) -> List[float]:
 

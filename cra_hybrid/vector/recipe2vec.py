@@ -1,11 +1,17 @@
 from sentence_transformers import SentenceTransformer
 from typing import List,Dict
+import openai
+import os
 
 
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+#openAI 초기화
+openai.api_key = OPENAI_API_KEY
 
 
 # 모델 로드
-model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+model = SentenceTransformer('')
 
 
 def recipe_to_vector(recipe:Dict)-> List[float]:

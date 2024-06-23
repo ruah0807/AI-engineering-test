@@ -6,6 +6,8 @@ pip install fastapi uvicorn beautifulsoup4 requests lxml fake_useragent python-d
 cd [해당폴더]
 uvicorn main:app --reload --port=[포트번호]
 
+
+
 # retrieval 플러그인 Haystack 설치
 
 pip install farm-haystack[elasticsearch]

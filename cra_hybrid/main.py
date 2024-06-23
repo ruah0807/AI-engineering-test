@@ -5,8 +5,7 @@ from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 
 from recipies import RecipeCrawler
-from vector.recipe2vec import recipe_to_vector,some_embedding_function
-from vector.food2vec_embedding import recipe_to_vector_food2vec, some_embedding_function_food2vec
+from vector.recipe2vec import recipe_to_vector,some_embedding_function, batch_upsert
 
 
 # env 관련
@@ -18,7 +17,6 @@ from pymongo.errors import BulkWriteError, ServerSelectionTimeoutError
 from pymongo.mongo_client import MongoClient
 from pymongo import UpdateOne
 
-from pinecone import Pinecone
 import json
 
 app = FastAPI()
@@ -28,18 +26,14 @@ load_dotenv()
 
 
 DB_URI= os.getenv('MONGODB_URI')
-PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 
 
 # MongoDB client 생성
 client = MongoClient(DB_URI)
-db = client.crawling_test
-
+db = client['crawling_test']
+collection = db['recipes']
     
-# Pinecone 초기화
-pc = Pinecone(api_key=PINECONE_API_KEY)
-index_name = 'recipes'
-index = pc.Index(index_name)
+
 
 
 
@@ -130,52 +124,38 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
 
 
 
+
+  
+  
+  
+
+
 ### 몽고DB에 저장된 데이터 파인콘에 백터화한 후 저장 ###
 @app.post('/ddook_recipes/index_to_pinecone', response_model=Dict)
 def index_to_pinecone():
     
-    recipes=db.recipes.find()
-    vectors =[]
-    
-    for recipe in recipes :
-        vector = {
-            'id': str(recipe['_id']),
-            'values' : recipe_to_vector(recipe) ,
-            'metadata': {
-                'title':recipe['title'],
-                'author':recipe['author'],
-                # json 변환된 ingredients 필드
-                'ingredients' :json.dumps(recipe['ingredients'], ensure_ascii=False),
-                'instructions': recipe['instructions']
-            }
-        }
-        vectors.append(vector)
+    try:
+        recipes = collection.find()
+        vectors = []
         
-    index.upsert(vectors=vectors)
-    return {'status':'success', 'indexed': len(vectors)}
-
-### food2vec을 이용한 재료 저장 ###
-@app.post('/ddook_recipes/food2vec', response_model=Dict)
-def index_to_pinecone_food2vec():
-    recipes = db.recipes.find()
-    vectors = []
-    
-    for recipe in recipes:
-        vector = {
-            'id': str(recipe['_id']),
-            'values': recipe_to_vector_food2vec(recipe),
-            'metadata': {
-                'title': recipe['title'],
-                'author': recipe['author'],
-                'ingredients': json.dumps(recipe['ingredients'], ensure_ascii=False),
-                'instructions': recipe['instructions']
+        for recipe in recipes:
+            vector = {
+                'id': str(recipe['_id']),
+                'values': recipe_to_vector(recipe),
+                'metadata': {
+                    'title': recipe['title'],
+                    'author': recipe['author'],
+                    'imgUrl': recipe['imgUrl'],
+                    'publishDate': recipe['publishDate']
+                }
             }
-        }
-        vectors.append(vector)
+            vectors.append(vector)
         
-    index.upsert(vectors=vectors)
-    return {'status': 'success', 'indexed': len(vectors)}
+        batch_upsert(vectors)
+        return {'status': 'success', 'indexed': len(vectors)}
     
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 ### 하이브리드 검색 : MongoDB + Pinecone 정확도와 유사도 검색 ###

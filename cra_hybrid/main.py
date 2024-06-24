@@ -2,10 +2,11 @@ from fastapi import FastAPI, HTTPException,Query
 from typing import List, Dict
 
 from bs4 import BeautifulSoup
+import numpy as np
 from fake_useragent import UserAgent
 
 from recipies import RecipeCrawler
-from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone
+from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 from vector.test_elastic import search_elasticsearch
 
 
@@ -17,7 +18,7 @@ import os
 from pymongo.errors import BulkWriteError, ServerSelectionTimeoutError
 from pymongo.mongo_client import MongoClient
 from pymongo import UpdateOne
-
+import logging
 import json
 
 app = FastAPI()
@@ -31,12 +32,10 @@ DB_URI= os.getenv('MONGODB_URI')
 
 # MongoDB client 생성
 client = MongoClient(DB_URI)
-db = client['crawling_test']
+db = client['ace_final_test']
 collection = db['recipes']
     
-
-
-
+logging.basicConfig(level=logging.INFO)
 
 def recipes_serializer(recipe) -> dict:
     return {
@@ -146,22 +145,41 @@ def index_to_pinecone():
     
     try:
         recipes = collection.find()
-        vectors = []
+        vectors = []        
+        existing_ids = set()
         
-        for recipe in recipes:
-            vector = {
-                'id': str(recipe['_id']),
-                'values': recipe_to_vector(recipe),
-                'metadata': {
-                    'title': recipe['title'],
-                    'author': recipe['author'],
-                    'imgUrl': recipe['imgUrl'],
-                    'publishDate': recipe['publishDate']
+        for count, recipe in enumerate(recipes, start=1):
+            try:
+                if str(recipe['_id']) in existing_ids:
+                    logging.warning(f"Skipping duplicate recipe with id: {recipe['_id']}")
+                    continue
+                vector = {
+                    'id': str(recipe['_id']),
+                    'values': recipe_to_vector(recipe),
+                    'metadata': {
+                        'title': recipe.get('title', ''),
+                        'author': recipe.get('author', ''),
+                        'platform': recipe.get('platform', ''),
+                        'imgUrl': recipe.get('imgUrl', ''),
+                        'publishDate': recipe.get('publishDate', '')
+                    }
                 }
-            }
-            vectors.append(vector)
-        
-        batch_upsert(vectors)
+                vectors.append(vector)
+                existing_ids.add(str(recipe['_id']))
+                
+                if count % 100 == 0:
+                    logging.info(f'Processed {count} recipes')
+                    
+                if count % 1000 == 0:
+                    batch_upsert(vectors)
+                    vectors = []  # 벡터 리스트 초기화
+            
+            except Exception as e:
+                logging.error(f"Error processing recipe with id: {recipe['_id']} - {str(e)}")
+            
+        if vectors:  # 마지막 배치를 업로드
+            batch_upsert(vectors)
+        logging.info('All vectors upserted successfully')
         return {'status': 'success', 'indexed': len(vectors)}
     
     except Exception as e:
@@ -203,73 +221,25 @@ def search_recipes(query: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-### 하이브리드 검색 : MongoDB + Pinecone 정확도와 유사도 검색 ###
-
-# @app.get("/hybrid_search", response_model=List[Dict])
-# def hybrid_search(query: str):
-#     # Pinecone에서 검색
-#     vector_query = some_embedding_function(query)
-#     pinecone_results = index.query(vector=vector_query, top_k=10, include_values=False, include_metadata=True)
-
-#     print(f"Pinecone Results: {pinecone_results}")
-
-
-#     # Pinecone 검색 결과에서 레시피 ID 추출 및 유사도 점수 저장
-#     pinecone_data = {result['id']: result['score'] for result in pinecone_results['matches']}
-    
-#     # MongoDB에서 검색 (Pinecone 결과와 추가 메타데이터 검색)
-#     mongo_query = {
-#         "$or": [
-#             {"recipe_id": {"$in": list(pinecone_data.keys())}}, 
-#             {"title": {"$regex": query, "$options": "i"}},
-#             {"ingredients": {"$regex": query, "$options": "i"}},
-#             {"instructions": {"$regex": query, "$options": "i"}}
-#         ]
-#     }
-#     mongo_results = db.recipes.find(mongo_query)
-#     mongo_results = [recipes_serializer(recipe) for recipe in mongo_results]
-    
-#     # print(f"MongoDB Results: {mongo_results}")
-    
-#     # 정확도를 계산하여 MongoDB 결과에 추가
-#     def calculate_accuracy_score(recipe, query):
-#         score = 0
-#         if query.lower() in recipe['title'].lower():
-#             score += 1.0
-#         if query.lower() in json.dumps(recipe['ingredients'], ensure_ascii=False).lower():
-#             score += 0.5
-#         if query.lower() in ' '.join(recipe['instructions']).lower():
-#             score += 0.5
-#         return score
-
-#     for result in mongo_results:
-#         result['accuracy_score'] = calculate_accuracy_score(result, query)
+@app.get ('/evaluate_search', response_model=Dict[str, float])
+def evaluate_search(query: str):
+    try:
+        metadata_list = search_pinecone(query)
+        if not metadata_list :
+            return {'accuracy': 0}
         
-#    # Pinecone 결과와 MongoDB 결과 결합 및 유사도 점수 추가
-#     combined_results = []
-#     for result in mongo_results:
-#         recipe_id = result['recipe_id']
-#         if recipe_id in pinecone_data:
-#             result['similarity_score'] = pinecone_data[recipe_id]
-#         else:
-#             result['similarity_score'] = 0  # MongoDB 결과는 유사도 점수가 없음
-#         combined_results.append(result)
-    
-#     # 정확도 점수와 유사도 점수를 합산하여 정렬
-#     combined_results.sort(key=lambda x: (x['accuracy_score'], x['similarity_score']), reverse=True)
-    
-#     return combined_results
+        # 예시 expected 데이터 (실제 데이터와 비교할 용도로 사용)
+        expected = {
+            'title': '케이크',
+            'author': '홍길동',
+            'ingredients': '밀가루, 설탕, 계란',
+            'instructions': '혼합 후 굽기'
+        }
 
-    
-# from haystack.document_stores import ElasticsearchDocumentStore
-# from haystack.nodes import EmbeddingRetriever
-# from haystack.pipelines import DocumentSearchPipeline
-# from sentence_transformers import SentenceTransformer
-    
-# document_store = ElasticsearchDocumentStore(
-#     host='elasticsearch',
-#     username='',
-#     password='',
-#     index='recipes'
-# )
-
+        # 상위 5개의 검색 결과에 대해 유사도 계산
+        similarities = [compute_similarity(expected, result) for result in metadata_list[:5]]
+        accuracy = np.mean(similarities) * 10  # 0 ~ 10 점수로 환산
+        
+        return {"accuracy": accuracy}
+    except Exception as e :
+        raise HTTPException (status_code=500, detail = str(e))

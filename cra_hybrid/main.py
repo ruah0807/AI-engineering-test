@@ -5,7 +5,8 @@ from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 
 from recipies import RecipeCrawler
-from vector.recipe2vec import recipe_to_vector,some_embedding_function, batch_upsert
+from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone
+from vector.test_elastic import search_elasticsearch
 
 
 # env 관련
@@ -127,7 +128,16 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
 
   
   
-  
+
+## 백터(values):
+#	•	백터는 숫자들의 긴 리스트입니다. 이 숫자들은 컴퓨터가 텍스트나 이미지 같은 정보를 이해하고 비교할 수 있게 해줍니다.
+#	•	예를 들어, 레시피 제목, 작성자, 재료, 조리 방법 같은 텍스트를 긴 숫자 리스트로 변환합니다. 
+#       이 리스트는 컴퓨터가 유사한 레시피를 빠르게 찾을 수 있게 도와줍니다.
+
+### 	메타데이터(metadata):
+#	•	메타데이터는 레시피에 대한 추가 정보를 담고 있습니다. 여기에는 레시피의 제목, 작성자, 이미지 URL, 
+#       게시 날짜 같은 것들이 포함됩니다.
+#	•	이 정보는 사람이 읽을 수 있게 되어 있어서, 검색 결과를 사용자에게 보여줄 때 사용합니다.
 
 
 ### 몽고DB에 저장된 데이터 파인콘에 백터화한 후 저장 ###
@@ -154,6 +164,41 @@ def index_to_pinecone():
         batch_upsert(vectors)
         return {'status': 'success', 'indexed': len(vectors)}
     
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.get('/search_recipes', response_model=List[Dict])
+def search_recipes(query: str):
+    try:
+        # 파인콘에서 벡터 검색
+        metadata_list = search_pinecone(query)
+        if not metadata_list:
+            return []
+        return metadata_list
+        
+        # 엘라스틱서치에서 문서 검색
+        documents = search_elasticsearch(metadata_list)
+        if not documents:
+            return []
+        
+        # 파인콘과 엘라스틱서치 결과 통합
+        final_results = []
+        for metadata in metadata_list:
+            for doc in documents:
+                if metadata['title'] == doc['title'] and metadata['author'] == doc['author']:
+                    final_results.append({
+                        'title': metadata['title'],
+                        'author': metadata['author'],
+                        'imgUrl': metadata['imgUrl'],
+                        'publishDate': metadata['publishDate'],
+                        # 'instructions': doc['instructions'],
+                        # 'ingredients': doc['ingredients']
+                    })
+                    break
+        
+        return final_results
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

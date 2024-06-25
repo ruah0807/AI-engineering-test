@@ -40,11 +40,11 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
 
 # 예제 사용법
 example_recipe = {
-    "title": "Spaghetti Carbonara",
-    "author": "John Doe",
-    "platform": "MyRecipes",
-    "ingredients": {"spaghetti": "200g", "egg": "2", "bacon": "100g"},
-    "instructions": "Boil the spaghetti. Cook the bacon. Mix everything together with eggs."
+    "title": "스파게티까르보나라",
+    "author": "뚝딱이형",
+    "platform": "chef kim의 뚝딱레시피",
+    "ingredients": {"스파게티": "200g", "달걀": "2", "베이컨": "100g"},
+    "instructions": "스파게티를 익히고 베이컨을 굽는다.달걀 후라이를 만들어 올린다."
 }
 
 vector = recipe_to_vector(example_recipe)

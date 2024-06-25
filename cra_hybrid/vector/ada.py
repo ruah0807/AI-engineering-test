@@ -25,19 +25,15 @@ index_name = 'recipes'
 index = pc.Index(index_name)
 
 
+
+
 def recipe_to_vector(recipe: Dict) -> List[float]:
     
     # ingredients 필드의 키만 사용하여 문자열로 변환
-    ingredients_keys = ""
-    if 'ingredients' in recipe:
-        if isinstance(recipe['ingredients'], dict):
-            ingredients_keys = " ".join(recipe['ingredients'].keys())
-        elif isinstance(recipe['ingredients'], list):
-            ingredients_keys = " ".join(recipe['ingredients'])
+    ingredients_keys = " ".join(recipe['ingredients'].keys()) if 'ingredients' in recipe and isinstance(recipe['ingredients'], dict) else ""
             
    # 모든 값을 하나의 문자열로 연결
-    text = f"{str(recipe.get('title', ''))} {str(recipe.get('author', ''))} {str(recipe.get('platform', ''))} {ingredients_keys} {str(recipe.get('instructions', ''))}"
-    
+    text = f"{recipe.get('title', '')} {recipe.get('author', '')} {recipe.get('platform', '')} {ingredients_keys} {recipe.get('instructions', '')}"
     vector = text_to_vector(text)
     return vector
 
@@ -52,7 +48,7 @@ def text_to_vector(text:str) -> List[float]:
     return embedding
 
 # 배치 처리함수 : 백터 데이터를 100 사이즈로 나누어 업로드 (크기가 크기때문에 저장이 안되어서 나눔)
-def batch_upsert(vectors, batch_size=1000):
+def batch_upsert(vectors, batch_size=100):
     for i in range(0, len(vectors), batch_size):
         batch = vectors[i : i+batch_size]
         index.upsert(vectors=batch)
@@ -60,11 +56,13 @@ def batch_upsert(vectors, batch_size=1000):
         
         
 ###  파인콘에서 백터 검색 
-def search_pinecone(query: str, top_k: int = 20) -> List[Dict]:
+def search_pinecone(query: str, top_k: int = 10) -> List[Dict]:
     
+    # 검색에 사용할 다른 모델
+    search_model = embed_model
     response = openai.embeddings.create(
         input=[query],
-        model=embed_model
+        model= search_model
     )
     vector = response.data[0].embedding
     

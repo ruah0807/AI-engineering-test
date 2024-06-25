@@ -1,13 +1,14 @@
 from fastapi import FastAPI, HTTPException,Query
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from bs4 import BeautifulSoup
 import numpy as np
 from fake_useragent import UserAgent
 
 from recipies import RecipeCrawler
-from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
-from vector.test_elastic import search_elasticsearch
+from cra_hybrid.vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
+# from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
+# from vector.test_elastic import search_elasticsearch
 
 
 # env 관련
@@ -147,12 +148,16 @@ def index_to_pinecone():
         recipes = collection.find()
         vectors = []        
         existing_ids = set()
+        max_count = 10000 # 저장할 최대 레시피 수
         
         for count, recipe in enumerate(recipes, start=1):
             try:
                 if str(recipe['_id']) in existing_ids:
                     logging.warning(f"Skipping duplicate recipe with id: {recipe['_id']}")
                     continue
+                 # ingredients 필드를 문자열로 변환
+                ingredients_str = json.dumps(recipe.get('ingredients', {}), ensure_ascii=False)
+                
                 vector = {
                     'id': str(recipe['_id']),
                     'values': recipe_to_vector(recipe),
@@ -160,8 +165,10 @@ def index_to_pinecone():
                         'title': recipe.get('title', ''),
                         'author': recipe.get('author', ''),
                         'platform': recipe.get('platform', ''),
+                        'ingredients': ingredients_str,
+                        'instructions': recipe.get('instructions', ''),
                         'imgUrl': recipe.get('imgUrl', ''),
-                        'publishDate': recipe.get('publishDate', '')
+                        'publishDate': recipe.get('publishDate', ''),
                     }
                 }
                 vectors.append(vector)
@@ -169,11 +176,15 @@ def index_to_pinecone():
                 
                 if count % 100 == 0:
                     logging.info(f'Processed {count} recipes')
-                    
-                if count % 1000 == 0:
+                
+                if len(vectors) >= 100:
                     batch_upsert(vectors)
                     vectors = []  # 벡터 리스트 초기화
-            
+
+                if count >= max_count:
+                    logging.info(f'Reached max count of {max_count} recipes. Stopping.')
+                    break
+                
             except Exception as e:
                 logging.error(f"Error processing recipe with id: {recipe['_id']} - {str(e)}")
             
@@ -221,12 +232,12 @@ def search_recipes(query: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get ('/evaluate_search', response_model=Dict[str, float])
+@app.get ('/evaluate_search', response_model=Dict[str, Any])
 def evaluate_search(query: str):
     try:
         metadata_list = search_pinecone(query)
         if not metadata_list :
-            return {'accuracy': 0}
+            return {'accuracy': 0, 'titles': []}
         
         # 예시 expected 데이터 (실제 데이터와 비교할 용도로 사용)
         expected = {
@@ -236,10 +247,19 @@ def evaluate_search(query: str):
             'instructions': '혼합 후 굽기'
         }
 
-        # 상위 5개의 검색 결과에 대해 유사도 계산
+         # 상위 5개의 검색 결과에 대해 유사도 계산
         similarities = [compute_similarity(expected, result) for result in metadata_list[:5]]
         accuracy = np.mean(similarities) * 10  # 0 ~ 10 점수로 환산
         
-        return {"accuracy": accuracy}
+        # 상위 5개의 제목과 ingredients 키 추출
+        results = []
+        for result in metadata_list[:10]:
+            # ingredients 필드가 JSON 문자열로 저장된 경우 파싱하여 처리
+            ingredients_str = result.get('ingredients', '{}')
+            ingredients_dict = json.loads(ingredients_str)
+            ingredients_keys = list(ingredients_dict.keys()) if isinstance(ingredients_dict, dict) else []
+            results.append({'title': result['title'], 'ingredients': ingredients_keys})
+        
+        return {"accuracy": accuracy, "results": results}
     except Exception as e :
         raise HTTPException (status_code=500, detail = str(e))

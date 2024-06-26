@@ -92,16 +92,9 @@ def create_vectors(recipe: Dict) -> Dict[str, List[float]]:
     }
 
 
-# # 예제 사용법
-# example_recipe = {
-#     "title": "스파게티까르보나라",
-#     "author": "뚝딱이형",
-#     "platform": "chef kim의 뚝딱레시피",
-#     "ingredients": {"스파게티": "200g", "달걀": "2", "베이컨": "100g"},
-#     "instructions": "스파게티를 익히고 베이컨을 굽는다.달걀 후라이를 만들어 올린다."
-# }
 
-# vector = recipe_to_vector(example_recipe)
+def normalize_score(score: float, max_val: float) -> float:
+    return (score / max_val) * 100
 
 
 # 백터 검색    
@@ -109,24 +102,33 @@ def hybrid_search_pinecone(query: str, top_k : int = 10) -> List[Dict]:
     
     #벡터 생성
     dense_vector = text_to_vector(query)
-    sparse_vector = bm25.encode_queries(query)
+    sparse_vector = bm25.encode_queries([query])[0]
     # Pinecone에서 검색
     response = index.query(
         vector=dense_vector, 
         sparse_vector=sparse_vector, 
         top_k=top_k, 
         include_metadata=True)
+    
     results = []
+    
+    max_score = max(match['score'] for match in response['matches'])  # 최대 점수 찾기
     
     for match in response['matches']:
         metadata = match['metadata']
+        score = match['score']   #유사도 점수
+        
+         # 최대 점수를 기준으로 정규화
+        normalized_score = normalize_score(score, max_score)
+
         # ingredients 필드가 문자열일 경우 딕셔너리로 변환
         if isinstance(metadata.get('ingredients', ''), str):
             metadata['ingredients'] = json.loads(metadata['ingredients'])
         results.append({
             'title': metadata.get('title', ''),
             'ingredients': list(metadata.get('ingredients', {}).keys()) if isinstance(metadata.get('ingredients', {}), dict) else [],
-            'instructions': metadata.get('instructions', '')
+            'instructions': metadata.get('instructions', ''),
+            'score': normalized_score
         })
     
     return results

@@ -10,26 +10,25 @@ import json
 import logging
 from transformers import AutoTokenizer, AutoModel
 from pymongo.mongo_client import MongoClient
-
 from pinecone_text.sparse import BM25Encoder
+
+
+
 
 # 환경 변수 로드
 load_dotenv()
 PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 DB_URI= os.getenv('MONGODB_URI')
 
-
 # MongoDB client 생성
 client = MongoClient(DB_URI)
 db = client['crawling_test']
 collection = db['recipes']
 
-
 # Pinecone 초기화
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index_name = 'e5-model'
 index = pc.Index(index_name)
-
 
 #  모델 로드
 name = 'intfloat/multilingual-e5-large'
@@ -37,12 +36,15 @@ tokenizer = AutoTokenizer.from_pretrained(name)
 model = AutoModel.from_pretrained(name) 
 
 
+
+
 def load_corpus_from_database():
     recipes = collection.find()
     corpus = []
     for recipe in recipes:
         ingredients_keys = " ".join(recipe['ingredients'].keys()) if 'ingredients' in recipe and isinstance(recipe['ingredients'], dict) else ""
-        corpus.append(f"{recipe.get('title', '')} {ingredients_keys} {recipe.get('instructions', '')}")
+        corpus.append(
+            f"{recipe.get('title', '')} {ingredients_keys} {recipe.get('instructions', '')}")
     return corpus
 
 corpus = load_corpus_from_database()
@@ -57,10 +59,11 @@ def text_to_vector(text: str)  -> List[float]:
     
     inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True , max_length=512) 
     outputs = model(**inputs)
-    
     vector = outputs.last_hidden_state[:,0,:].squeeze().detach().numpy()
     
     return vector.tolist()
+
+
 
 
 def recipe_to_vector(recipe: Dict) -> List[float]:
@@ -70,12 +73,13 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
          
     # koBert : 단어 위주의 임베딩 
     text = f"{recipe.get('title', '')} {recipe.get('author', '')} {recipe.get('platform', '')} {ingredients_keys} {recipe.get('instructions', '')}"
-    
     vector = text_to_vector(text)
     
     print(f"임베딩 벡터 차원: {len(vector)}")  # 임베딩 벡터 차원을 출력
     
     return vector
+
+
 
 
 ### 하이브리드 서치를 위한 희소,밀집의 벡터화
@@ -93,8 +97,11 @@ def create_vectors(recipe: Dict) -> Dict[str, List[float]]:
 
 
 
+
 def normalize_score(score: float, max_val: float) -> float:
     return (score / max_val) * 100
+
+
 
 
 # 백터 검색    
@@ -126,8 +133,8 @@ def hybrid_search_pinecone(query: str, top_k : int = 10) -> List[Dict]:
             metadata['ingredients'] = json.loads(metadata['ingredients'])
         results.append({
             'title': metadata.get('title', ''),
-            'ingredients': list(metadata.get('ingredients', {}).keys()) if isinstance(metadata.get('ingredients', {}), dict) else [],
-            'instructions': metadata.get('instructions', ''),
+            # 'ingredients': list(metadata.get('ingredients', {}).keys()) if isinstance(metadata.get('ingredients', {}), dict) else [],
+            # 'instructions': metadata.get('instructions', ''),
             'score': normalized_score
         })
     

@@ -3,12 +3,12 @@ from typing import List, Dict, Any
 import numpy as np
 
 from recipies import RecipeCrawler
-from vector.e5_sparse import recipe_to_vector, batch_upsert, create_vectors, hybrid_search_pinecone
+# from vector.e5_multi import recipe_to_vector, batch_upsert, create_vectors, hybrid_search_pinecone
 # from vector.e5 import recipe_to_vector, batch_upsert, search_pinecone
-# from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
-# from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
-# from cra_hybrid.vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
-# from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
+# from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone
+from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone
+# from vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone
+# from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.test_elastic import search_elasticsearch
 
 # env 관련
@@ -140,7 +140,7 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
 #	•	이 정보는 사람이 읽을 수 있게 되어 있어서, 검색 결과를 사용자에게 보여줄 때 사용합니다.
 
 
-### 몽고DB에 저장된 데이터 파인콘에 백터화한 후 저장 ###
+### 몽고DB에 저장된 데이터 파인콘에 백터화 저장 ###
 @app.post('/ddook_recipes/index_to_pinecone', response_model=Dict)
 def index_to_pinecone():
     
@@ -174,6 +174,8 @@ def index_to_pinecone():
                 vectors.append(vector)
                 existing_ids.add(str(recipe['_id']))
                 
+                logging.info(f"Processed recipe {count}: ID={vector['id']}, Title={vector['metadata']['title']}") # 각 벡터를 출력
+                
                 if count % 100 == 0:
                     logging.info(f'Processed {count} recipes')
                 
@@ -200,8 +202,8 @@ def index_to_pinecone():
 
 
 
-### 몽고DB에 저장된 데이터 파인콘에 백터화한 후 저장 ###
-@app.post('/ddook_recipes/index_to_pinecone', response_model=Dict)
+## 파인콘에 백터화 - 하이브리드 저장 ###
+@app.post('/ddook_recipes/index_to_pinecone/multi', response_model=Dict)
 def index_to_pinecone():
     
     try:
@@ -269,7 +271,9 @@ def index_to_pinecone():
 def search_recipes(query: str):
     try:
         # 파인콘에서 벡터 검색
-        metadata_list = hybrid_search_pinecone(query)
+        metadata_list = search_pinecone(query)
+        # metadata_list = hybrid_search_pinecone(query)
+        
         if not metadata_list:
             return []
         return metadata_list

@@ -5,6 +5,10 @@ from pinecone import Pinecone
 import numpy as np
 import logging
 from sentence_transformers import SentenceTransformer
+import json
+
+
+
 
 # 환경 변수 로드
 load_dotenv()
@@ -15,17 +19,16 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 index_name = 'kf-deberta-model'
 index = pc.Index(index_name)
 
-
 #  모델 로드
 model = SentenceTransformer('upskyy/kf-deberta-multitask')
 
 
+
 ###   백터 변환 
 def text_to_vector(text: str)  -> List[float]:
-    
     vector = model.encode(text)
-    
     return vector.tolist()
+
 
 
 def recipe_to_vector(recipe: Dict) -> List[float]:
@@ -35,7 +38,6 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
          
     # koBert : 단어 위주의 임베딩 
     text = f"{recipe.get('title', '')} {recipe.get('author', '')} {recipe.get('platform', '')} {ingredients_keys} {recipe.get('instructions', '')}"
-    
     vector = text_to_vector(text)
     
     print(f"임베딩 벡터 차원: {len(vector)}")  # 임베딩 벡터 차원을 출력
@@ -43,17 +45,10 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
     return vector
 
 
-# 예제 사용법
-example_recipe = {
-    "title": "스파게티까르보나라",
-    "author": "뚝딱이형",
-    "platform": "chef kim의 뚝딱레시피",
-    "ingredients": {"스파게티": "200g", "달걀": "2", "베이컨": "100g"},
-    "instructions": "스파게티를 익히고 베이컨을 굽는다.달걀 후라이를 만들어 올린다."
-}
 
-vector = recipe_to_vector(example_recipe)
 
+def normalize_score(score: float, max_val: float) -> float:
+    return (score / max_val) * 100
 
 
         
@@ -65,8 +60,29 @@ def search_pinecone(query: str, top_k : int = 10) -> List[Dict]:
     
     # Pinecone에서 검색
     response = index.query(vector=vector, top_k=top_k, include_metadata=True)
+    results = []
     
-    return [match['metadata'] for match in response['matches']]
+    max_score = max(match['score'] for match in response['matches'])  # 최대 점수 찾기
+    
+    for match in response['matches']:
+        metadata = match['metadata']
+        score = match['score']   #유사도 점수
+        
+         # 최대 점수를 기준으로 정규화
+        normalized_score = normalize_score(score, max_score)
+
+        # ingredients 필드가 문자열일 경우 딕셔너리로 변환
+        if isinstance(metadata.get('ingredients', ''), str):
+            metadata['ingredients'] = json.loads(metadata['ingredients'])
+        results.append({
+            'title': metadata.get('title', ''),
+            # 'ingredients': list(metadata.get('ingredients', {}).keys()) if isinstance(metadata.get('ingredients', {}), dict) else [],
+            # 'instructions': metadata.get('instructions', ''),
+            'score': normalized_score
+        })
+    return results
+
+
 
 
 # 배치 처리함수 : 백터 데이터를 100 사이즈로 나누어 업로드 (크기가 크기때문에 저장이 안되어서 나눔)

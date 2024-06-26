@@ -1,15 +1,14 @@
 from fastapi import FastAPI, HTTPException,Query
 from typing import List, Dict, Any
-
 import numpy as np
 
 from recipies import RecipeCrawler
-from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
+from vector.e5 import recipe_to_vector, batch_upsert, search_pinecone
+# from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from cra_hybrid.vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from vector.test_elastic import search_elasticsearch
-
 
 # env 관련
 from dotenv import load_dotenv
@@ -209,59 +208,6 @@ def search_recipes(query: str):
             return []
         return metadata_list
         
-        # 엘라스틱서치에서 문서 검색
-        documents = search_elasticsearch(metadata_list)
-        if not documents:
-            return []
-        
-        # 파인콘과 엘라스틱서치 결과 통합
-        final_results = []
-        for metadata in metadata_list:
-            for doc in documents:
-                if metadata['title'] == doc['title'] and metadata['author'] == doc['author']:
-                    final_results.append({
-                        'title': metadata['title'],
-                        'author': metadata['author'],
-                        'imgUrl': metadata['imgUrl'],
-                        'publishDate': metadata['publishDate'],
-                        # 'instructions': doc['instructions'],
-                        # 'ingredients': doc['ingredients']
-                    })
-                    break
-        
-        return final_results
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.get ('/evaluate_search', response_model=Dict[str, Any])
-def evaluate_search(query: str):
-    try:
-        metadata_list = search_pinecone(query)
-        if not metadata_list :
-            return {'accuracy': 0, 'titles': []}
-        
-        # 예시 expected 데이터 (실제 데이터와 비교할 용도로 사용)
-        expected = {
-            'title': '케이크',
-            'author': '홍길동',
-            'ingredients': '밀가루, 설탕, 계란',
-            'instructions': '혼합 후 굽기'
-        }
-
-         # 상위 5개의 검색 결과에 대해 유사도 계산
-        similarities = [compute_similarity(expected, result) for result in metadata_list[:5]]
-        accuracy = np.mean(similarities) * 10  # 0 ~ 10 점수로 환산
-        
-        # 상위 5개의 제목과 ingredients 키 추출
-        results = []
-        for result in metadata_list[:10]:
-            # ingredients 필드가 JSON 문자열로 저장된 경우 파싱하여 처리
-            ingredients_str = result.get('ingredients', '{}')
-            ingredients_dict = json.loads(ingredients_str)
-            ingredients_keys = list(ingredients_dict.keys()) if isinstance(ingredients_dict, dict) else []
-            results.append({'title': result['title'], 'ingredients': ingredients_keys})
-        
-        return {"accuracy": accuracy, "results": results}
-    except Exception as e :
-        raise HTTPException (status_code=500, detail = str(e))

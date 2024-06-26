@@ -109,24 +109,6 @@ def batch_upsert(vectors, batch_size=100):
         
 
         
-def compute_similarity(expected: Dict, actual: Dict) -> float:
-    expected_text = f"{expected['title']} {expected['author']} {expected['ingredients']} {expected['instructions']}"
-    actual_text = f"{actual['title']} {actual['author']} {actual['ingredients']} {actual['instructions']}"
-    
-    # KoBERT와 RoBERTa를 사용하여 벡터 생성
-    expected_vector_kobert = text_to_vector_kobert(expected_text)
-    actual_vector_kobert = text_to_vector_kobert(actual_text)
-    
-    expected_vector_roberta = text_to_vector_roberta(expected_text)
-    actual_vector_roberta = text_to_vector_roberta(actual_text)
-    
-    # 벡터 결합
-    expected_vector = np.concatenate((expected_vector_kobert, expected_vector_roberta))
-    actual_vector = np.concatenate((actual_vector_kobert, actual_vector_roberta))
-    
-    similarity = np.dot(expected_vector, actual_vector) / (np.linalg.norm(expected_vector) * np.linalg.norm(actual_vector))
-    return similarity
-
 
 
 

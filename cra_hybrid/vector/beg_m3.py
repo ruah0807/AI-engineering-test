@@ -81,13 +81,6 @@ def batch_upsert(vectors, batch_size=100):
         
         
 
-        
-def compute_similarity(expected: Dict, actual: Dict) -> float:
-    expected_vector = text_to_vector(f"{expected['title']} {expected['author']} {expected['ingredients']} {expected['instructions']}")
-    actual_vector = text_to_vector(f"{actual['title']} {actual['author']} {actual['ingredients']} {actual['instructions']}")
-    similarity = np.dot(expected_vector, actual_vector) / (np.linalg.norm(expected_vector) * np.linalg.norm(actual_vector))
-    return similarity
-
 
 
 

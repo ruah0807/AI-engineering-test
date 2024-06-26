@@ -1,3 +1,6 @@
+### 희소벡터와 밀집벡터를 저장하고 검색하는 하이브리드 ###
+### 사용 모델 : intfloat/multilingual-e5-large
+
 from typing import List,Dict
 import os
 from dotenv import load_dotenv
@@ -47,17 +50,7 @@ bm25 = BM25Encoder()
 bm25.fit(corpus)
 
 
-def create_vectors(recipe: Dict) -> Dict[str, List[float]]:
-    ingredients_keys = " ".join(recipe['ingredients'].keys()) if 'ingredients' in recipe and isinstance(recipe['ingredients'], dict) else ""
-    text = f"{recipe.get('title', '')} {ingredients_keys} {recipe.get('instructions', '')}"
-    
-    dense_vector = text_to_vector(text)
-    sparse_vector = bm25.encode(text)
-    
-    return {
-        'dense_vector': dense_vector,
-        'sparse_vector': sparse_vector
-    }
+
 
 ###  백터 변환 
 def text_to_vector(text: str)  -> List[float]:
@@ -85,6 +78,18 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
     return vector
 
 
+### 하이브리드 서치를 위한 희소,밀집의 벡터화
+def create_vectors(recipe: Dict) -> Dict[str, List[float]]:
+    ingredients_keys = " ".join(recipe['ingredients'].keys()) if 'ingredients' in recipe and isinstance(recipe['ingredients'], dict) else ""
+    text = f"{recipe.get('title', '')} {ingredients_keys} {recipe.get('instructions', '')}"
+    
+    dense_vector = text_to_vector(text)
+    sparse_vector = bm25.encode_documents(text)
+    
+    return {
+        'dense_vector': dense_vector,
+        'sparse_vector': sparse_vector
+    }
 
 
 # # 예제 사용법
@@ -100,7 +105,7 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
 
 
 # 백터 검색    
-def search_pinecone(query: str, top_k : int = 10) -> List[Dict]:
+def hybrid_search_pinecone(query: str, top_k : int = 10) -> List[Dict]:
     
     #벡터 생성
     dense_vector = text_to_vector(query)

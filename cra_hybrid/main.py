@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 import numpy as np
 
 from recipies import RecipeCrawler
-from vector.e5_sparse import recipe_to_vector, batch_upsert, search_pinecone, create_vectors
+from vector.e5_sparse import recipe_to_vector, batch_upsert, create_vectors, hybrid_search_pinecone
 # from vector.e5 import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
@@ -140,6 +140,61 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
 #	•	이 정보는 사람이 읽을 수 있게 되어 있어서, 검색 결과를 사용자에게 보여줄 때 사용합니다.
 
 
+### 몽고DB에 저장된 데이터 파인콘에 백터화한 후 저장 ###
+@app.post('/ddook_recipes/index_to_pinecone', response_model=Dict)
+def index_to_pinecone():
+    
+    try:
+        recipes = collection.find()
+        vectors = []        
+        existing_ids = set()
+        max_count = 10000 # 저장할 최대 레시피 수
+        
+        for count, recipe in enumerate(recipes, start=1):
+            try:
+                if str(recipe['_id']) in existing_ids:
+                    logging.warning(f"Skipping duplicate recipe with id: {recipe['_id']}")
+                    continue
+                 # ingredients 필드를 문자열로 변환
+                ingredients_str = json.dumps(recipe.get('ingredients', {}), ensure_ascii=False)
+                
+                vector = {
+                    'id': str(recipe['_id']),
+                    'values': recipe_to_vector(recipe),
+                    'metadata': {
+                        'title': recipe.get('title', ''),
+                        'author': recipe.get('author', ''),
+                        'platform': recipe.get('platform', ''),
+                        'ingredients': ingredients_str,
+                        'instructions': recipe.get('instructions', ''),
+                        'imgUrl': recipe.get('imgUrl', ''),
+                        'publishDate': recipe.get('publishDate', ''),
+                    }
+                }
+                vectors.append(vector)
+                existing_ids.add(str(recipe['_id']))
+                
+                if count % 100 == 0:
+                    logging.info(f'Processed {count} recipes')
+                
+                if len(vectors) >= 100:
+                    batch_upsert(vectors)
+                    vectors = []  # 벡터 리스트 초기화
+
+                if count >= max_count:
+                    logging.info(f'Reached max count of {max_count} recipes. Stopping.')
+                    break
+                
+            except Exception as e:
+                logging.error(f"Error processing recipe with id: {recipe['_id']} - {str(e)}")
+            
+        if vectors:  # 마지막 배치를 업로드
+            batch_upsert(vectors)
+        logging.info('All vectors upserted successfully')
+        return {'status': 'success', 'indexed': len(vectors)}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -214,7 +269,7 @@ def index_to_pinecone():
 def search_recipes(query: str):
     try:
         # 파인콘에서 벡터 검색
-        metadata_list = search_pinecone(query)
+        metadata_list = hybrid_search_pinecone(query)
         if not metadata_list:
             return []
         return metadata_list

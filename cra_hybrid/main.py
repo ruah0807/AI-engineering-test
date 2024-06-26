@@ -6,7 +6,9 @@ import numpy as np
 from fake_useragent import UserAgent
 
 from recipies import RecipeCrawler
-from cra_hybrid.vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
+# from cra_hybrid.vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
+from vector.beg_m3 import recipe_to_vector, batch_upsert
+
 # from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from vector.test_elastic import search_elasticsearch
 
@@ -33,7 +35,7 @@ DB_URI= os.getenv('MONGODB_URI')
 
 # MongoDB client 생성
 client = MongoClient(DB_URI)
-db = client['ace_final_test']
+db = client['crawling_test']
 collection = db['recipes']
     
 logging.basicConfig(level=logging.INFO)

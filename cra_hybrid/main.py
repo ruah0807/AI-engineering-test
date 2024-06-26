@@ -1,14 +1,12 @@
 from fastapi import FastAPI, HTTPException,Query
 from typing import List, Dict, Any
 
-from bs4 import BeautifulSoup
 import numpy as np
-from fake_useragent import UserAgent
 
 from recipies import RecipeCrawler
+from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
+# from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from cra_hybrid.vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
-from vector.beg_m3 import recipe_to_vector, batch_upsert
-
 # from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from vector.test_elastic import search_elasticsearch
 
@@ -175,6 +173,8 @@ def index_to_pinecone():
                 }
                 vectors.append(vector)
                 existing_ids.add(str(recipe['_id']))
+                
+                logging.info(f"Processed recipe {count}: ID={vector['id']}, Title={vector['metadata']['title']}") # 각 벡터를 출력
                 
                 if count % 100 == 0:
                     logging.info(f'Processed {count} recipes')

@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pinecone import Pinecone
 import numpy as np
 import logging
-from FlagEmbedding import BGEM3FlagModel
+from sentence_transformers import SentenceTransformer
 
 # 환경 변수 로드
 load_dotenv()
@@ -12,13 +12,20 @@ PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 
 # Pinecone 초기화
 pc = Pinecone(api_key=PINECONE_API_KEY)
-index_name = 'bge-m3-model'
+index_name = 'kf-deberta-model'
 index = pc.Index(index_name)
 
 
 #  모델 로드
-model = BGEM3FlagModel('BAAI/bge-m3',  
-                       use_fp16=True)
+model = SentenceTransformer('upskyy/kf-deberta-multitask')
+
+
+###   백터 변환 
+def text_to_vector(text: str)  -> List[float]:
+    
+    vector = model.encode(text)
+    
+    return vector.tolist()
 
 
 def recipe_to_vector(recipe: Dict) -> List[float]:
@@ -31,33 +38,23 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
     
     vector = text_to_vector(text)
     
-    # print(f"임베딩 벡터 차원: {len(vector)}")  # 임베딩 벡터 차원을 출력
+    print(f"임베딩 벡터 차원: {len(vector)}")  # 임베딩 벡터 차원을 출력
     
     return vector
 
 
-# # 예제 사용법
-# example_recipe = {
-#     "title": "스파게티까르보나라",
-#     "author": "뚝딱이형",
-#     "platform": "chef kim의 뚝딱레시피",
-#     "ingredients": {"스파게티": "200g", "달걀": "2", "베이컨": "100g"},
-#     "instructions": "스파게티를 익히고 베이컨을 굽는다.달걀 후라이를 만들어 올린다."
-# }
+# 예제 사용법
+example_recipe = {
+    "title": "스파게티까르보나라",
+    "author": "뚝딱이형",
+    "platform": "chef kim의 뚝딱레시피",
+    "ingredients": {"스파게티": "200g", "달걀": "2", "베이컨": "100g"},
+    "instructions": "스파게티를 익히고 베이컨을 굽는다.달걀 후라이를 만들어 올린다."
+}
 
-# vector = recipe_to_vector(example_recipe)
+vector = recipe_to_vector(example_recipe)
 
 
-
-###  RoBERTa 사용 백터 변환 
-def text_to_vector(text: str)  -> List[float]:
-    
-    vector = model.encode(text, 
-                            batch_size=12, 
-                            max_length=8192, # If you don't need such a long length, you can set a smaller value to speed up the encoding process.
-                            )['dense_vecs']
-    
-    return vector.tolist()
 
         
 # 백터 검색    

@@ -5,12 +5,22 @@ from pinecone import Pinecone
 import numpy as np
 import json
 import logging
-from torch import Tensor
 from transformers import AutoTokenizer, AutoModel
+from pymongo.mongo_client import MongoClient
+
+from pinecone_text.sparse import BM25Encoder
 
 # 환경 변수 로드
 load_dotenv()
 PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
+DB_URI= os.getenv('MONGODB_URI')
+
+
+# MongoDB client 생성
+client = MongoClient(DB_URI)
+db = client['crawling_test']
+collection = db['recipes']
+
 
 # Pinecone 초기화
 pc = Pinecone(api_key=PINECONE_API_KEY)
@@ -24,11 +34,35 @@ tokenizer = AutoTokenizer.from_pretrained(name)
 model = AutoModel.from_pretrained(name) 
 
 
+def load_corpus_from_database():
+    recipes = collection.find()
+    corpus = []
+    for recipe in recipes:
+        ingredients_keys = " ".join(recipe['ingredients'].keys()) if 'ingredients' in recipe and isinstance(recipe['ingredients'], dict) else ""
+        corpus.append(f"{recipe.get('title', '')} {ingredients_keys} {recipe.get('instructions', '')}")
+    return corpus
+
+corpus = load_corpus_from_database()
+bm25 = BM25Encoder()
+bm25.fit(corpus)
+
+
+def create_vectors(recipe: Dict) -> Dict[str, List[float]]:
+    ingredients_keys = " ".join(recipe['ingredients'].keys()) if 'ingredients' in recipe and isinstance(recipe['ingredients'], dict) else ""
+    text = f"{recipe.get('title', '')} {ingredients_keys} {recipe.get('instructions', '')}"
+    
+    dense_vector = text_to_vector(text)
+    sparse_vector = bm25.encode(text)
+    
+    return {
+        'dense_vector': dense_vector,
+        'sparse_vector': sparse_vector
+    }
+
 ###  백터 변환 
 def text_to_vector(text: str)  -> List[float]:
     
-   
-    inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True , max_length=512)    # 
+    inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True , max_length=512) 
     outputs = model(**inputs)
     
     vector = outputs.last_hidden_state[:,0,:].squeeze().detach().numpy()
@@ -51,6 +85,8 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
     return vector
 
 
+
+
 # # 예제 사용법
 # example_recipe = {
 #     "title": "스파게티까르보나라",
@@ -63,15 +99,18 @@ def recipe_to_vector(recipe: Dict) -> List[float]:
 # vector = recipe_to_vector(example_recipe)
 
 
-
 # 백터 검색    
 def search_pinecone(query: str, top_k : int = 10) -> List[Dict]:
     
-    #RoBERTa 벡터 생성
-    vector = text_to_vector(query)
-    
+    #벡터 생성
+    dense_vector = text_to_vector(query)
+    sparse_vector = bm25.encode_queries(query)
     # Pinecone에서 검색
-    response = index.query(vector=vector, top_k=top_k, include_metadata=True)
+    response = index.query(
+        vector=dense_vector, 
+        sparse_vector=sparse_vector, 
+        top_k=top_k, 
+        include_metadata=True)
     results = []
     
     for match in response['matches']:

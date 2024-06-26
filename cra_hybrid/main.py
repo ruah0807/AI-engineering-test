@@ -3,7 +3,8 @@ from typing import List, Dict, Any
 import numpy as np
 
 from recipies import RecipeCrawler
-from vector.e5 import recipe_to_vector, batch_upsert, search_pinecone
+from vector.e5_sparse import recipe_to_vector, batch_upsert, search_pinecone, create_vectors
+# from vector.e5 import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
 # from cra_hybrid.vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone, compute_similarity
@@ -139,6 +140,11 @@ def save_recipes(page_num : int = Query(1, description="Page number to crawl rec
 #	•	이 정보는 사람이 읽을 수 있게 되어 있어서, 검색 결과를 사용자에게 보여줄 때 사용합니다.
 
 
+
+
+
+
+
 ### 몽고DB에 저장된 데이터 파인콘에 백터화한 후 저장 ###
 @app.post('/ddook_recipes/index_to_pinecone', response_model=Dict)
 def index_to_pinecone():
@@ -157,9 +163,14 @@ def index_to_pinecone():
                  # ingredients 필드를 문자열로 변환
                 ingredients_str = json.dumps(recipe.get('ingredients', {}), ensure_ascii=False)
                 
+                vectors_data = create_vectors(recipe)
+                dense_vector = vectors_data['dense_vector']
+                sparse_vector = vectors_data['sparse_vector']
+                
                 vector = {
                     'id': str(recipe['_id']),
-                    'values': recipe_to_vector(recipe),
+                    'values': dense_vector,
+                    'sparse_values': sparse_vector,
                     'metadata': {
                         'title': recipe.get('title', ''),
                         'author': recipe.get('author', ''),

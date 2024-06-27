@@ -7,8 +7,9 @@ from .beg_m3 import model_beg_m3_search
 from .kf_deberta import model_kf_deberta_search
 
 
+### RRF(Reciprocal Rank Fusion)를 사용하여 여러 모델의 검색 결과를 결합하는 함수 ###
 def reciprocal_rank_fusion(results_list: List[Tuple[str, List[Tuple[str, float]]]], k: int = 60) -> List[Tuple[str, float, List[Tuple[str, float]]]]:
-    
+
     scores = defaultdict(float)
     model_contributions = defaultdict(list)
     
@@ -23,15 +24,13 @@ def reciprocal_rank_fusion(results_list: List[Tuple[str, List[Tuple[str, float]]
 
 
 
-
-def hybrid_search_pinecone(query: str, top_k: int = 10) -> List[Dict]:
+### 하이브리드 검색을 수행하여 결과와 모델별 기여도를 반환하는 함수 ###
+def hybrid_search_pinecone(query: str, top_k: int = 10) -> Tuple[List[Dict], Dict[str,float]]:
     
-    encoded_query = quote(query)
-    
-    results_model_e5_multi = model_e5_multi_search(encoded_query)
-    results_model_e5 = model_e5_search(encoded_query)
-    results_model_beg_m3 = model_beg_m3_search(encoded_query)
-    results_model_kf_deberta = model_kf_deberta_search(encoded_query)
+    results_model_e5_multi = model_e5_multi_search(query)
+    results_model_e5 = model_e5_search(query)
+    results_model_beg_m3 = model_beg_m3_search(query)
+    results_model_kf_deberta = model_kf_deberta_search(query)
     
        # 각 모델의 이름과 함께 결과를 전달
     combined_results = reciprocal_rank_fusion([
@@ -44,12 +43,19 @@ def hybrid_search_pinecone(query: str, top_k: int = 10) -> List[Dict]:
     # 상위 top_k 결과 반환
     top_results = combined_results[:top_k]
     
-    return [{'doc_id': doc_id, 'score': score, 'model_contributions': model_contributions} for doc_id, score, model_contributions in top_results]
+    #모델별 기여도 분석
+    model_contributions = analyze_model_contributions(top_results)
+    
+    return [{'doc_id': doc_id, 'score': score, 'model_contributions': model_contributions_detail} for doc_id, score, model_contributions_detail in top_results], model_contributions
 
 
-# 모델별 기여도 집계 함수
-def analyze_model_contributions(results: List[Dict]) -> Dict[str, float]:
+
+### 각 문서에 대한 모델별 기여도를 분석하여 모델별 총 기여도를 계산하는 함수###
+def analyze_model_contributions(results: List[Tuple[str, float, List[Tuple[str, float]]]]) -> Dict[str, float]:
     model_scores = defaultdict(float)
     
     for result in results :
-        for model_name, contribution in result['model']
+        for model_name, contribution in result[2]:
+            model_scores[model_name] += contribution
+            
+    return dict(model_scores)

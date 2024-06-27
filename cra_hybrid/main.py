@@ -4,7 +4,7 @@ import numpy as np
 
 from recipies import RecipeCrawler
 # from vector.e5_multi import recipe_to_vector, batch_upsert, create_vectors, hybrid_search_pinecone
-# from vector.e5_dense import recipe_to_vector, batch_upsert, search_pinecone
+from vector.e5_dense import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone
@@ -285,12 +285,15 @@ def search_recipes(query: str):
 
 
 
-@app.get('/search_recipes/rrf', response_model=List[Dict])
+@app.get('/search_recipes/rrf', response_model=Dict)
 def search_recipes(query: str = Query(..., description='검색어를 입력하시오')):
     try:
-        results = hybrid_search_pinecone(query, top_k=10)
-        return results
+        results, model_contributions = hybrid_search_pinecone(query, top_k=10)
+        response = {
+            "results": results,
+            "model_contributions": model_contributions
+        }
+        return response
     except Exception as e :
         raise HTTPException(status_code=500, detail=str(e))
-    
     

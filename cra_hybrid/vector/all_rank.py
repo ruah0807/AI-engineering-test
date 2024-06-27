@@ -12,15 +12,18 @@ def reciprocal_rank_fusion(results_list: List[Tuple[str, List[Tuple[str, float]]
 
     scores = defaultdict(float)
     model_contributions = defaultdict(list)
+    titles = {}
     
     for model_name, results in results_list:
-        for rank, (doc_id, _) in enumerate(results):
+        for rank, (doc_id, _, title) in enumerate(results):
             score_contribution = 1 / (k + rank)
             scores[doc_id] += score_contribution
             model_contributions[doc_id].append((model_name, score_contribution))
+            if doc_id not in titles :
+                titles[doc_id] = title
     combined_results = sorted(scores.items(), key=lambda item: item[1], reverse=True)
     
-    return [(doc_id, score, model_contributions[doc_id]) for doc_id, score in combined_results]
+    return [(doc_id, score, model_contributions[doc_id], titles[doc_id]) for doc_id, score in combined_results]
 
 
 
@@ -46,7 +49,7 @@ def hybrid_search_pinecone(query: str, top_k: int = 10) -> Tuple[List[Dict], Dic
     #모델별 기여도 분석
     model_contributions = analyze_model_contributions(top_results)
     
-    return [{'doc_id': doc_id, 'score': score, 'model_contributions': model_contributions_detail} for doc_id, score, model_contributions_detail in top_results], model_contributions
+    return [{'doc_id': doc_id,  'title': title, 'score': score, 'model_contributions': model_contributions_detail} for doc_id, title, score, model_contributions_detail in top_results], model_contributions
 
 
 

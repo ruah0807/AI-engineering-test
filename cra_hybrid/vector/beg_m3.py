@@ -1,4 +1,4 @@
-from typing import List,Dict
+from typing import List,Dict,Tuple
 import os
 from dotenv import load_dotenv
 from pinecone import Pinecone
@@ -94,6 +94,19 @@ def batch_upsert(vectors, batch_size=100):
         logging.info(f'Upserted batch of size: {len(batch)}')
         
         
+
+
+
+def model_beg_m3_search(query: str) -> List[Tuple[str, float]]:
+    dense_vector = text_to_vector(query)
+    response = index.query(
+        vector=dense_vector,
+        top_k=10,
+        include_metadata=True
+    )
+    results = [(match['id'], match['score']) for match in response['matches']]
+    return results
+
 
 
 

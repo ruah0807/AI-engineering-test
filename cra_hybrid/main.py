@@ -4,12 +4,13 @@ import numpy as np
 
 from recipies import RecipeCrawler
 # from vector.e5_multi import recipe_to_vector, batch_upsert, create_vectors, hybrid_search_pinecone
-# from vector.e5 import recipe_to_vector, batch_upsert, search_pinecone
+# from vector.e5_dense import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.kf_deberta import recipe_to_vector, batch_upsert, search_pinecone
-from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone
+# from vector.beg_m3 import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.test_elastic import search_elasticsearch
+from vector.all_rank import hybrid_search_pinecone
 
 # env 관련
 from dotenv import load_dotenv
@@ -202,68 +203,68 @@ def index_to_pinecone():
 
 
 
-## 파인콘에 백터화 - 하이브리드 저장 ###
-@app.post('/ddook_recipes/index_to_pinecone/multi', response_model=Dict)
-def index_to_pinecone():
+# ## 파인콘에 백터화 - 하이브리드 저장 ###
+# @app.post('/ddook_recipes/index_to_pinecone/multi', response_model=Dict)
+# def index_to_pinecone():
     
-    try:
-        recipes = collection.find()
-        vectors = []        
-        existing_ids = set()
-        max_count = 10000 # 저장할 최대 레시피 수
+#     try:
+#         recipes = collection.find()
+#         vectors = []        
+#         existing_ids = set()
+#         max_count = 10000 # 저장할 최대 레시피 수
         
-        for count, recipe in enumerate(recipes, start=1):
-            try:
-                if str(recipe['_id']) in existing_ids:
-                    logging.warning(f"Skipping duplicate recipe with id: {recipe['_id']}")
-                    continue
-                 # ingredients 필드를 문자열로 변환
-                ingredients_str = json.dumps(recipe.get('ingredients', {}), ensure_ascii=False)
+#         for count, recipe in enumerate(recipes, start=1):
+#             try:
+#                 if str(recipe['_id']) in existing_ids:
+#                     logging.warning(f"Skipping duplicate recipe with id: {recipe['_id']}")
+#                     continue
+#                  # ingredients 필드를 문자열로 변환
+#                 ingredients_str = json.dumps(recipe.get('ingredients', {}), ensure_ascii=False)
                 
-                vectors_data = create_vectors(recipe)
-                dense_vector = vectors_data['dense_vector']
-                sparse_vector = vectors_data['sparse_vector']
+#                 vectors_data = create_vectors(recipe)
+#                 dense_vector = vectors_data['dense_vector']
+#                 sparse_vector = vectors_data['sparse_vector']
                 
-                vector = {
-                    'id': str(recipe['_id']),
-                    'values': dense_vector,
-                    'sparse_values': sparse_vector,
-                    'metadata': {
-                        'title': recipe.get('title', ''),
-                        'author': recipe.get('author', ''),
-                        'platform': recipe.get('platform', ''),
-                        'ingredients': ingredients_str,
-                        'instructions': recipe.get('instructions', ''),
-                        'imgUrl': recipe.get('imgUrl', ''),
-                        'publishDate': recipe.get('publishDate', ''),
-                    }
-                }
-                vectors.append(vector)
-                existing_ids.add(str(recipe['_id']))
+#                 vector = {
+#                     'id': str(recipe['_id']),
+#                     'values': dense_vector,
+#                     'sparse_values': sparse_vector,
+#                     'metadata': {
+#                         'title': recipe.get('title', ''),
+#                         'author': recipe.get('author', ''),
+#                         'platform': recipe.get('platform', ''),
+#                         'ingredients': ingredients_str,
+#                         'instructions': recipe.get('instructions', ''),
+#                         'imgUrl': recipe.get('imgUrl', ''),
+#                         'publishDate': recipe.get('publishDate', ''),
+#                     }
+#                 }
+#                 vectors.append(vector)
+#                 existing_ids.add(str(recipe['_id']))
                 
-                logging.info(f"Processed recipe {count}: ID={vector['id']}, Title={vector['metadata']['title']}") # 각 벡터를 출력
+#                 logging.info(f"Processed recipe {count}: ID={vector['id']}, Title={vector['metadata']['title']}") # 각 벡터를 출력
                 
-                if count % 100 == 0:
-                    logging.info(f'Processed {count} recipes')
+#                 if count % 100 == 0:
+#                     logging.info(f'Processed {count} recipes')
                 
-                if len(vectors) >= 100:
-                    batch_upsert(vectors)
-                    vectors = []  # 벡터 리스트 초기화
+#                 if len(vectors) >= 100:
+#                     batch_upsert(vectors)
+#                     vectors = []  # 벡터 리스트 초기화
 
-                if count >= max_count:
-                    logging.info(f'Reached max count of {max_count} recipes. Stopping.')
-                    break
+#                 if count >= max_count:
+#                     logging.info(f'Reached max count of {max_count} recipes. Stopping.')
+#                     break
                 
-            except Exception as e:
-                logging.error(f"Error processing recipe with id: {recipe['_id']} - {str(e)}")
+#             except Exception as e:
+#                 logging.error(f"Error processing recipe with id: {recipe['_id']} - {str(e)}")
             
-        if vectors:  # 마지막 배치를 업로드
-            batch_upsert(vectors)
-        logging.info('All vectors upserted successfully')
-        return {'status': 'success', 'indexed': len(vectors)}
+#         if vectors:  # 마지막 배치를 업로드
+#             batch_upsert(vectors)
+#         logging.info('All vectors upserted successfully')
+#         return {'status': 'success', 'indexed': len(vectors)}
     
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -281,3 +282,15 @@ def search_recipes(query: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+
+@app.get('/search_recipes/rrf', response_model=List[Dict])
+def search_recipes(query: str = Query(..., description='검색어를 입력하시오')):
+    try:
+        results = hybrid_search_pinecone(query, top_k=10)
+        return results
+    except Exception as e :
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    

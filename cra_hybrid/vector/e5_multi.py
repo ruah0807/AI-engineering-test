@@ -1,7 +1,7 @@
 ### 희소벡터와 밀집벡터를 저장하고 검색하는 하이브리드 ###
 ### 사용 모델 : intfloat/multilingual-e5-large
 
-from typing import List,Dict
+from typing import List,Dict, Tuple
 import os
 from dotenv import load_dotenv
 from pinecone import Pinecone
@@ -154,6 +154,16 @@ def batch_upsert(vectors, batch_size=100):
 
 
 
-
+def model_e5_multi_search(query: str) -> List[Tuple[str, float]]:
+    dense_vector = text_to_vector(query)
+    sparse_vector = bm25.encode_queries([query])[0]
+    response = index.query(
+        vector=dense_vector,
+        sparse_vector=sparse_vector,
+        top_k=10,
+        include_metadata=True
+    )
+    results = [(match['id'], match['score']) for match in response['matches']]
+    return results
 
 

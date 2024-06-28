@@ -104,7 +104,7 @@ def model_beg_m3_search(query: str) -> List[Tuple[str, float]]:
         top_k=10,
         include_metadata=True
     )
-    results = [(match['id'], match['score']) for match in response['matches']]
+    results = [(match['id'], match['score'],  match['metadata']['title']) for match in response['matches']]
     return results
 
 

@@ -1,4 +1,4 @@
-from typing import List,Dict
+from typing import List,Dict,Tuple
 import os
 from dotenv import load_dotenv
 from pinecone import Pinecone
@@ -108,9 +108,15 @@ def batch_upsert(vectors, batch_size=100):
         
         
 
-        
 
 
-
-
+def model_ro_ko_multi_search(query: str) -> List[Tuple[str, float]]:
+    dense_vector = recipe_to_vector(query)
+    response = index.query(
+        vector=dense_vector,
+        top_k=10,
+        include_metadata=True
+    )
+    results = [(match['id'], match['score'], match['metadata']['title']) for match in response['matches']]
+    return results
 

@@ -50,3 +50,4 @@ def some_embedding_function_food2vec(text:str) -> List[float]:
     embedding = model.encode(text)
     return embedding.tolist()
     
+    

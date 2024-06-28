@@ -1,18 +1,38 @@
 from elasticsearch import Elasticsearch, helpers
-from typing import List, Dict,Tuple
+from typing import List, Dict, Tuple
 from dotenv import load_dotenv
-from bson import ObjectId
-from rank_bm25 import BM25Okapi
-import bm25 as bm
+import os
+from pymongo import MongoClient
 
+# 환경 변수 로드
+load_dotenv()
+DB_URI = os.getenv('MONGODB_URI')
 
+# MongoDB client 생성
+client = MongoClient(DB_URI)
+db = client['crawling_test']
+collection = db['recipes']
 
+# Elasticsearch client 생성
 es = Elasticsearch([{'host': 'localhost', 'port': '9200'}])
 
 # 인덱스 설정
 index_name = 'recipes_elastics'
 es.indices.create(index=index_name, ignore=400)
 
+# MongoDB에서 문서 가져오기
+documents = list(collection.find({}, {
+    '_id': 1,
+    'title': 1,
+    'ingredients': 1,
+    'instructions': 1
+}))
+
+# 문서의 내용을 추출하고 텍스트 데이터 생성
+document_texts = [
+    f"{doc.get('title', '')} {' '.join(doc.get('ingredients', {}).keys())} {' '.join(doc.get('instructions', []))}"
+    for doc in documents
+]
 
 # 데이터와 BM25 점수를 Elasticsearch에 저장
 actions = [
@@ -22,29 +42,12 @@ actions = [
         '_source': {
             'title': doc.get('title', ''),
             'ingredients': doc.get('ingredients', {}),
-            'instructions': doc.get('instructions', []),
-            'bm25_score': score
+            'instructions': doc.get('instructions', [])
         }
     }
-    for doc, score in zip(bm.documents, bm.scores)
+    for doc in documents
 ]
-
 
 # 데이터 인덱싱
 helpers.bulk(es, actions)
-print('bm25점수 계산 및 elasticsearch에 저장완료')
-
-
-# Elasticsearch에서 검색
-search_query = {
-    'query': {
-        'multi_match': {
-            'query': bm.query,
-            'fields': ['title', 'ingredients', 'instructions']
-        }
-    }
-}
-es_response = es.search(index=index_name, body= search_query)
-
-# Elasticsearch 점수 추출
-es_scores = {hit['_id']: hit['_score'] for hit in es_response['hits']['hits']}
+print('데이터가 Elasticsearch에 저장되었습니다.')

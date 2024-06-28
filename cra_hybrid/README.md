@@ -42,3 +42,7 @@ driver: local
 ## 컨테이너 삭제 명령어
 
     docker-compose down
+
+## 인덱스 삭제 명령어
+
+curl -X DELETE "localhost:9200/recipes_elastics"

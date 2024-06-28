@@ -10,7 +10,7 @@ from vector.e5_dense import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.ro_ko_multi import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.recipe2vec import recipe_to_vector, batch_upsert, search_pinecone
 # from vector.test_elastic import search_elasticsearch
-from vector.all_rank import hybrid_search_pinecone
+from vector.rrf import hybrid_search_pinecone
 
 # env 관련
 from dotenv import load_dotenv

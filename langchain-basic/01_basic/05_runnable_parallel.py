@@ -3,6 +3,11 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
+# API KEY를 환경변수로 관리하기 위한 설정파일
+from dotenv import load_dotenv
+
+# API 정보 로드
+load_dotenv()
 # LangSmith 추적을 설정합니다. https://smith.langchain.com
 # .env 파일에 LANGCHAIN_API_KEY를 입력합니다.
 from langchain_teddynote import logging
@@ -10,11 +15,6 @@ from langchain_teddynote import logging
 # 프로젝트 이름을 입력합니다.
 logging.langsmith("langchain_test")
 
-# API KEY를 환경변수로 관리하기 위한 설정파일
-from dotenv import load_dotenv
-
-# API 정보 로드
-load_dotenv()
 
 ####################################################################
 
